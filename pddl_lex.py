@@ -7,6 +7,7 @@ reserved = {
     'define': 'DEFINE',
     'domain': 'DOMAIN',
     ':requirements': 'REQUIREMENTS',
+    ':constants': 'CONSTANTS',
     ':strips': 'STRIPS',
     ':equality': 'EQUALITY',
     ':typing': 'TYPING',
@@ -30,10 +31,10 @@ reserved = {
     ':types': 'TYPES',
 }
 
-tokens = ['ID', 'MINUS', 'LPAREN', 'RPAREN', 'EQUALS', 'COMMENT', 'DEF', 'PARAMETER'] + list(reserved.values())
+tokens = ['ID', 'DASH', 'LPAREN', 'RPAREN', 'EQUALS', 'COMMENT', 'DEF', 'PARAMETER'] + list(reserved.values())
 
 # Regular expression rules for simple tokens
-t_MINUS   = r'\-'
+t_DASH   = r'\-'
 t_LPAREN  = r'\('
 t_RPAREN  = r'\)'
 t_EQUALS  = r'\='

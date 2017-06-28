@@ -10,9 +10,11 @@ from pddl_lex import tokens
 
 class Domain(object):
 
-    def __init__(self):
-        self.name = None
+    def __init__(self, name):
+        self.name = name
         self.definition = None
+        self.types = None
+        self.components = []
         self.requirements = []
         self.predicates = {}
         self.actions = {}
@@ -21,7 +23,7 @@ class Domain(object):
         return '\n'.join(['Name: %s' % self.name,
                           'Requirements: %s' % str(self.requirements),
                           'Predicates: %s' % str(self.predicates),
-                          'Actions: %s' % str(self.actions)])
+                          'Actions: %s' % str(self.actions.values())])
 
     def set_definition(self, definition):
         self.definition = definition
@@ -38,6 +40,15 @@ class Domain(object):
     def add_predicate(self, predicate_name, predicate):
         self.predicates[predicate_name] = predicate
 
+    def set_components(self, components):
+        for k, v in components:
+            if k == ':requirements':
+                self.requirements = v
+            elif k == ':types':
+                self.types = v
+            elif k == ':predicates':
+                self.predicates = v
+
 
 class Action(object):
     def __init__(self, action_name):
@@ -47,7 +58,10 @@ class Action(object):
         self.effect = None
 
     def __repr__(self):
-        return str((self.name, self.parameters, self.precondition, self.effect))
+        return '\n' + 'Name: %s ' % self.name + '\n' + \
+               '\n'.join(['Parameters: %s' % str(self.parameters),
+                          'Precondition: %s' % str(self.precondition),
+                          'Effect: %s' % str(self.effect)])
 
     def add_parameter(self, parameter):
         self.parameters.append(parameter)
@@ -59,46 +73,48 @@ def p_domain(p):
 
 
 def p_domain_def(p):
-    '''domain_def : LPAREN DOMAIN ID RPAREN requirements_declr types_declr predicates_declr actions_declr'''
-    pddl_domain = Domain()
-    pddl_domain.set_name(p[3])
-    pddl_domain.requirements = p[5]
-    pddl_domain.types = p[6]
-    pddl_domain.predicates = p[7]
-    pddl_domain.actions = p[8]
+    '''domain_def : LPAREN DOMAIN ID RPAREN domain_components actions_declr'''
+    pddl_domain = Domain(p[3])
+    pddl_domain.set_components(p[5])
+    pddl_domain.actions = p[6]
     p[0] = pddl_domain
 
 
-def p_requirements_declr(p):
-    '''requirements_declr : LPAREN REQUIREMENTS requirements_def RPAREN
-                          | LPAREN REQUIREMENTS RPAREN'''
-    if len(p) == 4:
-        p[0] = []
+def p_domain_components(p):
+    '''domain_components : domain_components domain_component
+                         | domain_component'''
+    if len(p) == 3:
+        p[1].append(p[2])
+        p[0] = p[1]
     else:
-        p[0] = p[3]
+        p[0] = [p[1]]
+
+
+def p_domain_component(p):
+    '''domain_component : requirements_declr
+                        | types_declr
+                        | predicates_declr'''
+    p[0] = p[1]
+
+
+def p_requirements_declr(p):
+    '''requirements_declr : LPAREN REQUIREMENTS requirements_def RPAREN'''
+    p[0] = (p[2], p[3])
 
 
 def p_types_declr(p):
-    '''types_declr : LPAREN TYPES types_def RPAREN
-                   | empty'''
-    if len(p) == 4:
-        p[0] = p[3]
-    else:
-        p[0] = None
-
-
-def p_empty(p):
-    '''empty : '''
+    '''types_declr : LPAREN TYPES types_def RPAREN'''
+    p[0] = (p[2], p[3])
 
 
 def p_predicates_declr(p):
     'predicates_declr : LPAREN PREDICATES predicates_def RPAREN'
-    p[0] = p[3]
+    p[0] = (p[2], p[3])
 
 
 def p_actions_declr(p):
     '''actions_declr : actions_declr action_declr 
-                           | action_declr'''
+                     | action_declr'''
     if len(p) == 2 and p[1]:
         p[0] = {p[1].name: p[1]}
     elif len(p) == 3:
@@ -131,9 +147,9 @@ def p_effect_def(p):
 
 
 def p_effect_declr(p):
-    '''effect_declr : LPAREN AND operator_args RPAREN
-                    | LPAREN NOT operator_args RPAREN
-                    | LPAREN OR operator_args RPAREN
+    '''effect_declr : LPAREN AND effect_expr RPAREN
+                    | LPAREN OR effect_expr RPAREN
+                    | LPAREN NOT predicate_def RPAREN
                     | predicate_def'''
     if len(p) == 5:
         p[0] = (p[2], p[3])
@@ -141,31 +157,38 @@ def p_effect_declr(p):
         p[0] = ('PRED', p[1])
 
 
-def p_operator_args(p):
-    '''operator_args : operator_args operator_arg
-                     | operator_arg
-    '''
-    if len(p) == 3:
-        p[1].append(p[2])
+def p_effect_expr(p):
+    '''effect_expr : effect_expr LPAREN NOT predicate_def RPAREN
+                   | effect_expr predicate_def
+                   | predicate_def'''
+    if len(p) == 6:
+        p[1].append((p[3], p[4]))
         p[0] = p[1]
-    else:
-        p[0] = [p[1]]
-
-
-def p_operator_arg(p):
-    '''operator_arg : effect_declr
-                    | precondition_declr'''
-    p[0] = p[1]
+    elif len(p) == 3:
+        p[1].append(('PRED', p[2]))
+        p[0] = p[1]
+    elif len(p) == 2:
+        p[0] = [('PRED', p[1])]
 
 
 def p_precondition_declr(p):
-    '''precondition_declr : LPAREN AND operator_args RPAREN
-                          | LPAREN OR operator_args RPAREN
+    '''precondition_declr : LPAREN AND precondition_expr RPAREN
+                          | LPAREN OR precondition_expr RPAREN
                           | predicate_def'''
     if len(p) == 5:
         p[0] = (p[2], p[3])
     else:
         p[0] = ('PRED', p[1])
+
+
+def p_precondition_expr(p):
+    '''precondition_expr : precondition_expr predicate_def
+                         | predicate_def'''
+    if len(p) == 3:
+        p[1].append(p[2])
+        p[0] = p[1]
+    else:
+        p[0] = [p[1]]
 
 
 def p_requirements_def(p):
@@ -220,10 +243,10 @@ class Predicate(object):
 
 def p_predicate_def(p):
     '''predicate_def : LPAREN ID parameters_def RPAREN'''
+
     predicate_name = p[2]
     new_predicate = Predicate(predicate_name)
-    for parameter in p[3]:
-        new_predicate.add_parameter(parameter)
+    new_predicate.parameters = p[3]
     p[0] = new_predicate
 
 
@@ -235,6 +258,15 @@ def p_parameters_def(p):
         p[0].append(p[2])
     else:
         p[0] = [p[1]]
+
+
+# def p_parameter_def(p):
+#     '''parameter_def : PARAMETER DASH ID
+#                      | PARAMETER'''
+#     if len(p) == 3:
+#         p[0] = (p[1], p[3])
+#     else:
+#         p[0] = (p[1], 'object')
 
 
 # Error rule for syntax errors
@@ -254,7 +286,7 @@ def main():
         # Remove single line comments
         data = f.read()
 
-    result = parser.parse(data)
+    result = parser.parse(data, tracking=True)
     print(result)
 
 if __name__ == '__main__':
