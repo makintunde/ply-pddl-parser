@@ -15,15 +15,27 @@ class Domain(object):
         self.definition = None
         self.types = None
         self.components = []
+        self.constants = []
         self.requirements = []
         self.predicates = {}
-        self.actions = {}
+        self.action_map = {}
+        self.actions = []
 
     def __str__(self):
-        return '\n'.join(['Name: %s' % self.name,
-                          'Requirements: %s' % str(self.requirements),
-                          'Predicates: %s' % str(self.predicates),
-                          'Actions: %s' % str(self.actions.values())])
+        details = '\n'.join(['Name: %s' % self.name,
+                             'Requirements: %s' % str(self.requirements),
+                             'Types: %s' % str(self.types),
+                             'Constants: %s' % str(self.constants),
+                             'Predicates: %s' % str(self.predicates)])
+
+        details += '\n' + 'Actions: '
+
+        for action in self.actions:
+            details += '\n' + str(action)
+
+        details += '\n'
+
+        return details
 
     def set_definition(self, definition):
         self.definition = definition
@@ -48,6 +60,8 @@ class Domain(object):
                 self.types = v
             elif k == ':predicates':
                 self.predicates = v
+            elif k == ':constants':
+                self.constants = v
 
 
 class Action(object):
@@ -57,7 +71,7 @@ class Action(object):
         self.precondition = None
         self.effect = None
 
-    def __repr__(self):
+    def __str__(self):
         return '\n' + 'Name: %s ' % self.name + '\n' + \
                '\n'.join(['Parameters: %s' % str(self.parameters),
                           'Precondition: %s' % str(self.precondition),
@@ -93,7 +107,8 @@ def p_domain_components(p):
 def p_domain_component(p):
     '''domain_component : requirements_declr
                         | types_declr
-                        | predicates_declr'''
+                        | predicates_declr
+                        | constants_declr'''
     p[0] = p[1]
 
 
@@ -112,14 +127,19 @@ def p_predicates_declr(p):
     p[0] = (p[2], p[3])
 
 
+def p_constants_declr(p):
+    '''constants_declr : LPAREN CONSTANTS typed_name_list RPAREN'''
+    p[0] = (p[2], p[3])
+
+
 def p_actions_declr(p):
     '''actions_declr : actions_declr action_declr 
                      | action_declr'''
-    if len(p) == 2 and p[1]:
-        p[0] = {p[1].name: p[1]}
-    elif len(p) == 3:
+    if len(p) == 3:
+        p[1].append(p[2])
         p[0] = p[1]
-        p[0][p[2].name] = p[2]
+    else:
+        p[0] = [p[1]]
 
 
 def p_action_declr(p):
@@ -132,7 +152,7 @@ def p_action_declr(p):
 
 
 def p_action_parameters_def(p):
-    '''action_parameters_def : PARAMETERS LPAREN parameters_def RPAREN'''
+    '''action_parameters_def : PARAMETERS LPAREN typed_variable_list RPAREN'''
     p[0] = p[3]
 
 
@@ -211,6 +231,65 @@ def p_types_def(p):
         p[0] = [p[1]]
 
 
+# If we have any typed names, they must come first.
+def p_typed_name_list(p):
+    '''typed_name_list : name_list
+                       | single_type_name_lists
+                       | single_type_name_lists name_list'''
+    if len(p) == 2:
+        p[0] = p[1]
+    else:  # TODO: Needs further investigation
+        p[1].append(p[2])
+        p[0] = p[1]
+
+
+def p_single_type_name_lists(p):
+    '''single_type_name_lists : single_type_name_lists single_type_name_list
+                              | single_type_name_list'''
+    if len(p) == 2:
+        p[0] = p[1]
+    else:
+        p[1].extend(p[2])
+        p[0] = p[1]
+
+
+class Name(object):
+    def __init__(self, name):
+        self.name = name
+        self.type = 'object'
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return self.name + ' :: ' + self.type
+
+
+def p_name_list(p):
+    '''name_list : name_list ID
+                 | ID'''
+    if len(p) == 2:
+        p[0] = [Name(p[1])]
+    else:
+        p[1].append(Name(p[2]))
+        p[0] = p[1]
+
+
+def p_single_type_name_list(p):
+    '''single_type_name_list : name_list DASH type'''
+    result = []
+    for name in p[1]:
+        new_name = Name(name.name)
+        new_name.type = p[3]
+        result.append(new_name)
+    p[0] = result
+
+
+def p_type(p):
+    '''type : ID'''
+    p[0] = p[1]
+
+
 def p_requirement(p):
     '''requirement : STRIPS 
                    | EQUALITY 
@@ -232,30 +311,69 @@ def p_predicates_def(p):
 class Predicate(object):
     def __init__(self, predicate_name):
         self.name = predicate_name
-        self.parameters = []
+        self.variables = []
 
     def __repr__(self):
-        return str((self.name, self.parameters))
+        return str((self.name, self.variables))
 
     def add_parameter(self, parameter):
-        self.parameters.append(parameter)
+        self.variables.append(parameter)
 
 
 def p_predicate_def(p):
-    '''predicate_def : LPAREN ID parameters_def RPAREN'''
-
+    '''predicate_def : LPAREN ID typed_variable_list RPAREN'''
     predicate_name = p[2]
     new_predicate = Predicate(predicate_name)
-    new_predicate.parameters = p[3]
+    new_predicate.variables = p[3]
     p[0] = new_predicate
+
+
+# If we have any typed names, they must come first.
+def p_typed_variable_list(p):
+    '''typed_variable_list : variable_list
+                           | single_type_variable_lists
+                           | single_type_variable_lists variable_list'''
+    if len(p) == 2:
+        if isinstance(p[1], list):
+            p[0] = (p[1], 'object')
+        else:
+            p[0] = p[1]
+    else:
+        p[1].append((p[2], 'object'))
+        p[0] = p[1]
+
+
+def p_single_type_variable_lists(p):
+    '''single_type_variable_lists : single_type_variable_lists single_type_variable_list
+                                  | single_type_variable_list'''
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[1].append(p[2])
+        p[0] = p[1]
+
+
+def p_single_type_variable_list(p):
+    '''single_type_variable_list : variable_list DASH ID'''
+    p[0] = (p[1], p[3])
+
+
+def p_variable_list(p):
+    '''variable_list : variable_list PARAMETER
+                     | PARAMETER'''
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[1].append(p[2])
+        p[0] = p[1]
 
 
 def p_parameters_def(p):
     '''parameters_def : parameters_def PARAMETER
                       | PARAMETER'''
     if len(p) > 2:
+        p[1].append(p[2])
         p[0] = p[1]
-        p[0].append(p[2])
     else:
         p[0] = [p[1]]
 
@@ -271,7 +389,7 @@ def p_parameters_def(p):
 
 # Error rule for syntax errors
 def p_error(p):
-    print("Syntax error in input!")
+    print("Syntax error in input!", p)
 
 # Build the parser
 parser = yacc.yacc()

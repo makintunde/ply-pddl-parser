@@ -34,15 +34,15 @@ reserved = {
 tokens = ['ID', 'DASH', 'LPAREN', 'RPAREN', 'EQUALS', 'COMMENT', 'DEF', 'PARAMETER'] + list(reserved.values())
 
 # Regular expression rules for simple tokens
-t_DASH   = r'\-'
 t_LPAREN  = r'\('
 t_RPAREN  = r'\)'
 t_EQUALS  = r'\='
 t_ignore_COMMENT = r'\;.*'
+t_DASH   = r' - '
 
 
 def t_ID(t):
-    r'[a-zA-Z_-][a-zA-Z_0-9-]*'
+    r'[a-zA-Z_][a-zA-Z_0-9-]*'
     t.type = reserved.get(t.value, 'ID')    # Check for reserved words
     return t
 
