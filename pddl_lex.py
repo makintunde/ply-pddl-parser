@@ -24,7 +24,7 @@ reserved = {
     'or': 'OR',
     'when': 'WHEN',
     'problem': 'PROBLEM',
-    ':domain': 'DOMAIN_DEF',
+    ':domain': 'DOMAIN_DECLR',
     ':objects': 'OBJECTS',
     ':init': 'INIT',
     ':goal': 'GOAL',

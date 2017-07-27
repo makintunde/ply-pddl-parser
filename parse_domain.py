@@ -65,7 +65,6 @@ def p_predicates_declr(p):
 
 def p_constants_declr(p):
     '''constants_declr : LPAREN CONSTANTS typed_name_list RPAREN'''
-
     p[0] = (p[2], p[3])
 
 
