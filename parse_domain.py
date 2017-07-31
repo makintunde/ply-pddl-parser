@@ -88,8 +88,12 @@ def p_action_declr(p):
 
 
 def p_action_parameters_def(p):
-    '''action_parameters_def : PARAMETERS LPAREN typed_variable_list RPAREN'''
-    p[0] = p[3]
+    '''action_parameters_def : PARAMETERS LPAREN typed_variable_list RPAREN
+                            | PARAMETERS LPAREN RPAREN'''
+    if len(p) == 5:
+        p[0] = p[3]
+    else:
+        p[0] = []
 
 
 def p_precondition_def(p):
@@ -116,10 +120,13 @@ def p_effect_declr(p):
 def p_effect_expr(p):
     '''effect_expr : effect_expr LPAREN NOT predicate_def RPAREN
                    | effect_expr predicate_def
+                   | LPAREN NOT predicate_def RPAREN
                    | predicate_def'''
     if len(p) == 6:
         p[1].append((p[3], p[4]))
         p[0] = p[1]
+    elif len(p) == 5:
+        p[0] = [(p[2], p[3])]
     elif len(p) == 3:
         p[1].append(p[2])
         p[0] = p[1]
@@ -233,7 +240,20 @@ def p_predicates_def(p):
 
 
 def p_predicate_def(p):
-    '''predicate_def : LPAREN ID typed_variable_list RPAREN'''
+    '''predicate_def : unparametrised_predicate_def
+                     | parametrised_predicate_def'''
+    p[0] = p[1]
+
+
+def p_unparametrised_predicate_def(p):
+    '''unparametrised_predicate_def : LPAREN ID RPAREN'''
+    predicate_name = p[2]
+    new_predicate = Predicate(predicate_name)
+    p[0] = new_predicate
+
+
+def p_parametrised_predicate_def(p):
+    '''parametrised_predicate_def : LPAREN ID typed_variable_list RPAREN'''
     predicate_name = p[2]
     new_predicate = Predicate(predicate_name)
     new_predicate.variables = p[3]
@@ -286,16 +306,6 @@ def p_variable_list(p):
             variable.type = type_of[variable.name]
         p[1].append(variable)
         p[0] = p[1]
-
-
-def p_parameters_def(p):
-    '''parameters_def : parameters_def PARAMETER
-                      | PARAMETER'''
-    if len(p) > 2:
-        p[1].append(p[2])
-        p[0] = p[1]
-    else:
-        p[0] = [p[1]]
 
 
 # Error rule for syntax errors
