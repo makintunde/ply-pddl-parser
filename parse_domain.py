@@ -83,7 +83,7 @@ def p_action_declr(p):
     new_action = Action(p[3])
     new_action.set_parameters(p[4], type_of)
     new_action.precondition = p[5]
-    new_action.effect = p[6]
+    new_action.set_effect(p[6])
     p[0] = new_action
 
 
